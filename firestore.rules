@@ -1,16 +1,30 @@
 rules_version = '2';
 // Firebase console > Firestore Database > Rules > paste > Publish.
-// Anyone with the link can read all votes and write their own document.
+// Anyone with the link can read all votes and suggestions, write their own
+// voter document, and create (not edit or delete) a suggestion.
 // Nothing else in the project is reachable.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /voters/{voterId} {
       allow read: if true;
-      allow write: if request.resource.data.keys().hasOnly(['name','votes','updated','nameKey'])
+      allow write: if request.resource.data.keys().hasOnly(['name','votes','updated','nameKey','suggVotes'])
                    && request.resource.data.name is string
                    && request.resource.data.name.size() > 0
                    && request.resource.data.name.size() <= 40
-                   && request.resource.data.votes.size() <= 200;
+                   && request.resource.data.votes.size() <= 200
+                   && (!('suggVotes' in request.resource.data) || request.resource.data.suggVotes.size() <= 200);
+    }
+    match /suggestions/{suggestionId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['title','artist','addedBy','createdAt'])
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() > 0
+                    && request.resource.data.title.size() <= 80
+                    && request.resource.data.artist is string
+                    && request.resource.data.artist.size() <= 60
+                    && request.resource.data.addedBy is string
+                    && request.resource.data.addedBy.size() <= 40;
+      allow update, delete: if false;
     }
     match /{document=**} {
       allow read, write: if false;

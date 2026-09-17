@@ -12,14 +12,14 @@
 :root{
   --ground:#101F1E; --raise:#17292A; --edge:#26403F;
   --ink:#E9E6DA; --dim:#93A5A1; --faint:#5E7573;
-  --lamp:#E0A33C; --wine:#D4688F; --sage:#7FB6A3;
+  --lamp:#E0A33C; --wine:#D4688F; --sage:#7FB6A3; --guest:#7C9CD4;
   --up:#7FB6A3; --down:#D4688F;
 }
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){
     --ground:#E6E3D7; --raise:#EFEDE3; --edge:#CFCBBB;
     --ink:#1B2C2B; --dim:#5A6B68; --faint:#8C9A96;
-    --lamp:#9A6410; --wine:#9B3459; --sage:#2F6E5B;
+    --lamp:#9A6410; --wine:#9B3459; --sage:#2F6E5B; --guest:#39598F;
     --up:#2F6E5B; --down:#9B3459;
   }
 }
@@ -78,12 +78,17 @@ input::placeholder{color:var(--faint)}
 .pip.on{background:var(--sage);border-color:var(--sage)}
 .pip.on.f{background:var(--wine);border-color:var(--wine)}
 .pip.on.c{background:var(--lamp);border-color:var(--lamp)}
+.pip.on.g{background:var(--guest);border-color:var(--guest)}
 .sortrow{display:flex;gap:.4rem;align-items:center;margin-top:.55rem;
   color:var(--faint);font-size:.78rem;flex-wrap:wrap}
 .sortrow button{background:none;border:0;color:var(--dim);font-size:.78rem;
   padding:.1rem .3rem;border-radius:2px;text-decoration:underline;text-underline-offset:3px}
 .sortrow button[aria-pressed="true"]{color:var(--ink);text-decoration:none;
   background:var(--raise);border:1px solid var(--edge)}
+
+.addrow{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem}
+.addrow input{flex:1 1 auto;min-width:8rem}
+.addrow .btn{flex:none}
 
 ol.songs{list-style:none;margin:.4rem 0 0;padding:0}
 ol.songs li{display:grid;grid-template-columns:auto auto 1fr auto;
@@ -97,7 +102,7 @@ ol.songs li{display:grid;grid-template-columns:auto auto 1fr auto;
 .vote .score{font-variant-numeric:tabular-nums;font-size:.9rem;font-weight:600;
   color:var(--dim);min-width:1.5rem;text-align:center}
 .vote .score.pos{color:var(--up)} .vote .score.neg{color:var(--down)}
-.pips{display:flex;gap:.22rem;width:2.6rem;flex:none}
+.pips{display:flex;gap:.22rem;width:3.1rem;flex:none}
 .title{min-width:0}
 .title .s{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .title .ar{display:block;color:var(--dim);font-size:.84rem;
@@ -132,7 +137,7 @@ ol.songs li{display:grid;grid-template-columns:auto auto 1fr auto;
 
 <section class="gate" id="gate">
   <h2>Which of these should the band play?</h2>
-  <p>187 songs. Vote up the ones you want to hear, down the ones you&rsquo;d rather not. You can change your mind any time &mdash; come back with the same name and your votes will be waiting.</p>
+  <p>Vote up the ones you want to hear, down the ones you&rsquo;d rather not. Don&rsquo;t see a song? Add it once you&rsquo;re in. You can change your mind any time &mdash; come back with the same name and your votes will be waiting.</p>
   <div class="row">
     <input type="text" id="name" placeholder="Your name" autocomplete="name" maxlength="40">
     <button class="btn" id="start">Start voting</button>
@@ -157,7 +162,13 @@ ol.songs li{display:grid;grid-template-columns:auto auto 1fr auto;
       <button id="sortScore" aria-pressed="true">by score</button>
       <button id="sortAz" aria-pressed="false">A&ndash;Z</button>
     </div>
-    <p class="hint">All three lists are switched on. Untick one to take its songs out.</p>
+    <p class="hint">All four lists are switched on. Untick one to take its songs out.</p>
+    <div class="addrow">
+      <input type="text" id="addTitle" placeholder="Song title" maxlength="80">
+      <input type="text" id="addArtist" placeholder="Artist (optional)" maxlength="60">
+      <button class="btn small" id="addBtn" type="button">Add song</button>
+    </div>
+    <p class="err" id="adderr" hidden></p>
   </div>
 
   <ol class="songs" id="list"></ol>
@@ -171,23 +182,27 @@ ol.songs li{display:grid;grid-template-columns:auto auto 1fr auto;
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, onSnapshot, getDocs, query, where }
+import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, getDocs, query, where }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { FIREBASE_CONFIG } from "./config.js";
 
 const DATA = [["September","Earth, Wind & Fire",7],["Uptown Funk","Mark Ronson",7],["Get Lucky","Daft Punk",5],["Love On Top","Beyoncé",5],["Sugar","Maroon 5",3],["This Love","Maroon 5",3],["Treasure","Bruno Mars",5],["Wonderwall","Oasis",5],["Hey Ya!","Outkast",6],["Sweet Caroline","Neil Diamond",6],["Twist And Shout","The Beatles",6],["Yeah!","USHER",6],["Adventure Of A Lifetime","Coldplay",1],["After The Love Has Gone","Earth, Wind & Fire",1],["All I Ask","Adele",1],["All My Loving","The Beatles",1],["Are You Gonna Be My Girl","Jet",1],["Attention","Charlie Puth",1],["Belief","John Mayer",1],["Believer","Imagine Dragons",1],["Butterfly","Jason Mraz",1],["By The Way","Red Hot Chili Peppers",1],["Californication","Red Hot Chili Peppers",1],["Champagne Supernova","Oasis",1],["Chocolate","The 1975",1],["Closer","The Chainsmokers",1],["Come As You Are","Nirvana",1],["Come Together","The Beatles",1],["Creep","Radiohead",1],["Dancing with my phone","HYBS",1],["Dear God","Avenged Sevenfold",1],["Demons","Imagine Dragons",1],["Die With A Smile","Lady Gaga, Bruno Mars",1],["Don't Look Back In Anger","Oasis",1],["Drive","Incubus",1],["Drown","Bring Me The Horizon",1],["Easy","Lionel Richie",1],["Endless Rain","X Japan",1],["Feeling Good","Muse",1],["Finesse","Bruno Mars",1],["Follow You","Bring Me The Horizon",1],["Girls","The 1975",1],["Give It Away","Red Hot Chili Peppers",1],["Gravity","John Mayer",1],["Grenade","Bruno Mars",1],["The Handler","Muse",1],["Hey Jude","The Beatles",1],["High and Dry","Radiohead",1],["How Deep Is Your Love","Bee Gees",1],["\"How Long\"","Charlie Puth",1],["Hump de Bump","Red Hot Chili Peppers",1],["Hysteria","Muse",1],["I Always Wanna Die","The 1975",1],["I Feel It Coming","The Weeknd",1],["I'm Yours","Jason Mraz",1],["I Started A Joke","Bee Gees",1],["I Won't Give Up","Jason Mraz",1],["In The End","Linkin Park",1],["It's My Life","Bon Jovi",1],["It's Time","Imagine Dragons",1],["Just The Way You Are","Bruno Mars",1],["The Lazy Song","Bruno Mars",1],["Leave the Door Open","Bruno Mars, Anderson .Paak, Silk Sonic",1],["Let It Be","The Beatles",1],["Listen","Beyonce",1],["Love Me","The 1975",1],["Lover Boy","Phum Viphurit",1],["Maps","Maroon 5",1],["My Sacrifice","Creed",1],["Narcissist","No Rome",1],["New Divide","Linkin Park",1],["Next Year","Two Door Cinema Club",1],["No You Girls","Franz Ferdinand",1],["Numb","Linkin Park",1],["One Call Away","Charlie Puth",1],["Payphone","Maroon 5",1],["Psycho","Muse",1],["Radioactive","Imagine Dragons",1],["The Reason","Hoobastank",1],["Ride","HYBS",1],["Robbers","The 1975",1],["Rolling in the Deep","Adele",1],["Set Fire to the Rain","Adele",1],["Shape of You","Ed Sheeran",1],["Sincerity Is Scary","The 1975",1],["Skyfall","Adele",1],["Sleep Alone","Two Door Cinema Club",1],["Smells Like Teen Spirit","Nirvana",1],["Snacks & Wine","WIM",1],["Somebody Else","The 1975",1],["Something Just Like This","The Chainsmokers & Coldplay",1],["Stand By Me","Oasis",1],["Stellar","Incubus",1],["Stop Crying Your Heart Out","Oasis",1],["Sunday Morning","Maroon 5",1],["Supernova","WIM",1],["Sweet Child O' Mine","Guns N' Roses",1],["Take Me Out","Franz Ferdinand",1],["That’s What I Like","Bruno Mars",1],["Throne","Bring Me The Horizon",1],["Tip Toe","HYBS",1],["Undercover Martyn","Two Door Cinema Club",1],["Until I Found You","Stephen Sanchez",1],["Versace on the Floor","Bruno Mars",1],["Warriors","Imagine Dragons",1],["What I've Done","Linkin Park",1],["What You Know","Two Door Cinema Club",1],["Whatever It Takes","Imagine Dragons",1],["When I Was Your Man","Bruno Mars",1],["Yellow","Coldplay",1],["Yesterday","The Beatles",1],["Young Dumb & Broke","Khalid",1],["679","Fetty Wap",2],["Ain't No Mountain High Enough","Marvin Gaye & Tammi Terrell",4],["All Night","Chance the Rapper",2],["All The Small Things","blink-182",2],["All Star","Smash Mouth",2],["The Anthem","Good Charlotte",2],["At Last","Etta James",4],["Blinding Lights","The Weeknd",4],["Build Me Up Buttercup","The Foundations",4],["Cake By The Ocean","DNCE",2],["Can't Help Falling in Love","Elvis Presley",4],["Can't Stop the Feeling","Justin Timberlake",4],["Caroline","Aminé",2],["Come Away with Me","Norah Jones",4],["Communize","Lawncare",2],["Crazy in Love","Beyoncé",4],["Dammit","blink-182",2],["Dancing in the Street","Martha & the Vandellas",4],["Dancing On My Own","Robyn",4],["Dancing Queen","ABBA",4],["Don't Stop Believin'","Journey",4],["Everybody","Backstreet Boys",2],["Fat Lip","Sum 41",2],["First Date","blink-182",2],["First Day of My Life","Bright Eyes",4],["Get Down On It","Kool & The Gang",2],["Girls Just Want to Have Fun","Cyndi Lauper",4],["Gold Digger","Kanye West",2],["Hate Bein' Sober","Chief Keef",2],["Higher Love","Steve Winwood",4],["Hips Don't Lie","Shakira",2],["I Love College","Asher Roth",2],["I Wanna Dance with Somebody","Whitney Houston",4],["I Want It That Way","Backstreet Boys",2],["I Want You Back","The Jackson 5",4],["Ignition","R. Kelly",2],["Isn't She Lovely","Stevie Wonder",4],["Jealous","Nick Jonas",2],["Just A Lil' Thick","Trinidad James",2],["Kiss","Prince",4],["L-O-V-E","Nat King Cole",4],["Lady Marmalade","Labelle",4],["Let Me Hold You","Cheat Codes",2],["Let's Groove","Earth, Wind & Fire",4],["Let's Stay Together","Al Green",4],["Levitating","Dua Lipa",4],["Livin' on a Prayer","Bon Jovi",4],["Love Sosa","Chief Keef",2],["Make You Feel My Love","Adele",4],["Movin' Out","Billy Joel",2],["Mr. Brightside","The Killers",4],["No Problem","Chance the Rapper",2],["Old Thing Back","Matoma",2],["Piano Man","Billy Joel",2],["Pony","Ginuwine",2],["Poppin Chiz Pills","Lawncare",2],["Respect","Aretha Franklin",4],["Ride Wit Me","Nelly",2],["Roses","The Chainsmokers",2],["Sell Out","Reel Big Fish",2],["Shake It Off","Taylor Swift",4],["Shut Up and Dance","Walk the Moon",4],["Signed, Sealed, Delivered","Stevie Wonder",4],["Superstition","Stevie Wonder",4],["Thinking Out Loud","Ed Sheeran",4],["The Time of My Life","Bill Medley & Jennifer Warnes",4],["Toothbrush","DNCE",2],["Total Eclipse of the Heart","Bonnie Tyler",4],["Trap Queen","Fetty Wap",2],["Tubthumping","Chumbawamba",2],["Unchained Melody","The Righteous Brothers",4],["Valerie","Amy Winehouse",4],["The Way You Look Tonight","Frank Sinatra",4],["What's My Age Again?","blink-182",2],["Your Song","Elton John",4]];
 const N = DATA.length;
+const SUGG_BIT = 8;
 const TAGS = [
   {bit:1, cls:"",  label:"Band can play"},
   {bit:2, cls:"f", label:"Kasten\u2019s playlist"},
-  {bit:4, cls:"c", label:"Common wedding song"}
+  {bit:4, cls:"c", label:"Common wedding song"},
+  {bit:SUGG_BIT, cls:"g", label:"Public suggestions"}
 ];
+const SET_MINUTES = 210; // 3.5-hour set, at ~4 min/song
 const LS = "foo-wedding-id";
 
-let db=null, myDocId=null, myName="", myVotes=new Int8Array(N);
-let everyone=[];              // [{id,name,votes:Int8Array}]
+let db=null, myDocId=null, myName="", myVotes=new Int8Array(N), mySuggVotes={};
+let everyone=[];              // [{id,name,votes:Int8Array,suggVotes:{}}]
+let suggestions=[];           // [{id,title,artist,addedBy,createdAt}]
 let sortBy="score";
-const state={1:true,2:true,4:true};
+const state={1:true,2:true,4:true,[SUGG_BIT]:true};
 const $=id=>document.getElementById(id);
 
 // ---------- helpers ----------
@@ -197,6 +212,8 @@ function packVotes(v){ const o={}; for(let i=0;i<N;i++) if(v[i]) o[i]=v[i]; retu
 function unpackVotes(o){ const v=new Int8Array(N);
   for(const k in o||{}){ const i=+k; if(i>=0&&i<N) v[i]= o[k]===1?1 : o[k]===-1?-1 : 0; }
   return v; }
+function packSuggVotes(v){ const o={}; for(const k in v) if(v[k]) o[k]=v[k]; return o; }
+function unpackSuggVotes(o){ const v={}; for(const k in o||{}) if(o[k]===1||o[k]===-1) v[k]=o[k]; return v; }
 function showOffline(msg){ const b=$("offline"); b.textContent=msg; b.hidden=false; }
 
 // ---------- firebase ----------
@@ -207,14 +224,24 @@ async function connect(){
     onSnapshot(collection(db,"voters"),
       snap=>{
         everyone=snap.docs.map(d=>({id:d.id, name:d.data().name||"Someone",
-                                    votes:unpackVotes(d.data().votes)}));
+                                    votes:unpackVotes(d.data().votes),
+                                    suggVotes:unpackSuggVotes(d.data().suggVotes)}));
         const mine=everyone.find(p=>p.id===myDocId);
-        if(mine && !saving) myVotes=mine.votes;
+        if(mine && !saving){ myVotes=mine.votes; mySuggVotes=mine.suggVotes; }
         $("dot").className="dot live";
         render();
       },
       err=>{ $("dot").className="dot";
              showOffline("Lost the connection to the vote store, so scores may be out of date. Your votes are still saved on this device. ("+err.code+")"); }
+    );
+    onSnapshot(collection(db,"suggestions"),
+      snap=>{
+        suggestions=snap.docs.map(d=>({id:d.id, title:d.data().title||"",
+                                       artist:d.data().artist||"", addedBy:d.data().addedBy||"",
+                                       createdAt:d.data().createdAt||0}));
+        render();
+      },
+      err=>{}
     );
     return true;
   }catch(e){
@@ -230,7 +257,7 @@ async function saveVotes(){
   saving=true;
   try{
     await setDoc(doc(db,"voters",myDocId),
-      {name:myName, votes:packVotes(myVotes), updated:Date.now()}, {merge:false});
+      {name:myName, votes:packVotes(myVotes), suggVotes:packSuggVotes(mySuggVotes), updated:Date.now()}, {merge:false});
   }catch(e){
     showOffline("Couldn\u2019t save that vote to the shared list. ("+(e.code||e.message)+")");
   }
@@ -258,75 +285,131 @@ function buildLegend(){
     const b=document.createElement("button");
     b.className="tagbtn"; b.type="button"; b.dataset.bit=t.bit;
     b.innerHTML='<span class="box"><span>\u2713</span></span><i class="pip on '+t.cls+
-      '"></i><span class="lbl">'+t.label+'</span><span class="n">'+
-      DATA.filter(r=>r[2]&t.bit).length+'</span>';
+      '"></i><span class="lbl">'+t.label+'</span><span class="n" id="tagcount-'+t.bit+'">0</span>';
     b.onclick=()=>{ state[t.bit]=!state[t.bit]; render(); };
     el.appendChild(b);
   });
+  updateLegendCounts();
 }
-const passes=r=>{ for(const t of TAGS) if(!state[t.bit]&&(r[2]&t.bit)) return false; return true; };
+function updateLegendCounts(){
+  TAGS.forEach(t=>{
+    const n = t.bit===SUGG_BIT ? suggestions.length : DATA.filter(r=>r[2]&t.bit).length;
+    const el=document.getElementById("tagcount-"+t.bit);
+    if(el) el.textContent=n;
+  });
+}
+function buildEntries(){
+  const arr=[];
+  for(let i=0;i<N;i++){
+    const r=DATA[i];
+    arr.push({kind:"base", idx:i, title:r[0], artist:r[1], bits:r[2]});
+  }
+  for(const s of suggestions){
+    arr.push({kind:"sugg", id:s.id, title:s.title, artist:s.artist, bits:SUGG_BIT, addedBy:s.addedBy});
+  }
+  return arr;
+}
+const passesBits=bits=>{ for(const t of TAGS) if(!state[t.bit]&&(bits&t.bit)) return false; return true; };
 
 // ---------- render ----------
 function render(){
   TAGS.forEach(t=>{ const b=$("legend").querySelector('[data-bit="'+t.bit+'"]');
                     if(b) b.setAttribute("aria-pressed", state[t.bit]); });
+  updateLegendCounts();
   $("sortScore").setAttribute("aria-pressed", sortBy==="score");
   $("sortAz").setAttribute("aria-pressed", sortBy==="az");
 
   const term=$("q").value.trim().toLowerCase();
   const items=[];
-  for(let i=0;i<N;i++){
-    const r=DATA[i];
-    if(!passes(r)) continue;
-    if(term && !(r[0]+" "+r[1]).toLowerCase().includes(term)) continue;
+  for(const entry of buildEntries()){
+    if(!passesBits(entry.bits)) continue;
+    if(term && !(entry.title+" "+(entry.artist||"")).toLowerCase().includes(term)) continue;
     let up=0,down=0;
-    for(const p of everyone){ if(p.votes[i]===1)up++; else if(p.votes[i]===-1)down++; }
-    items.push({i,up,down,net:up-down});
+    for(const p of everyone){
+      const v = entry.kind==="base" ? p.votes[entry.idx] : (p.suggVotes||{})[entry.id];
+      if(v===1)up++; else if(v===-1)down++;
+    }
+    items.push({entry,up,down,net:up-down});
   }
   items.sort( sortBy==="az"
-    ? (a,b)=>DATA[a.i][0].localeCompare(DATA[b.i][0])
-    : (a,b)=> b.net-a.net || b.up-a.up || DATA[a.i][0].localeCompare(DATA[b.i][0]) );
+    ? (a,b)=>a.entry.title.localeCompare(b.entry.title)
+    : (a,b)=> b.net-a.net || b.up-a.up || a.entry.title.localeCompare(b.entry.title) );
 
   const anyOn=TAGS.some(t=>state[t.bit]);
   $("empty").hidden=items.length>0;
   $("empty").textContent = anyOn ? "Nothing matches that. Try a shorter search."
-                                 : "All three lists are switched off. Turn one back on.";
+                                 : "All four lists are switched off. Turn one back on.";
   const frag=document.createDocumentFragment();
   for(const it of items){
-    const r=DATA[it.i], mine=myVotes[it.i];
+    const entry=it.entry;
+    const mine = entry.kind==="base" ? myVotes[entry.idx] : (mySuggVotes[entry.id]||0);
+    const artistLine = entry.kind==="sugg"
+      ? (entry.artist ? esc(entry.artist)+' \u2014 suggested by '+esc(entry.addedBy||"someone")
+                      : 'Suggested by '+esc(entry.addedBy||"someone"))
+      : esc(entry.artist||"\u2014");
     const li=document.createElement("li");
     li.innerHTML=
       '<span class="vote">'+
-        '<button class="up" type="button" aria-pressed="'+(mine===1)+'" aria-label="Vote up '+esc(r[0])+'">\u25B2</button>'+
+        '<button class="up" type="button" aria-pressed="'+(mine===1)+'" aria-label="Vote up '+esc(entry.title)+'">\u25B2</button>'+
         '<span class="score '+(it.net>0?"pos":it.net<0?"neg":"")+'">'+(it.net>0?"+":"")+it.net+'</span>'+
-        '<button class="down" type="button" aria-pressed="'+(mine===-1)+'" aria-label="Vote down '+esc(r[0])+'">\u25BC</button>'+
+        '<button class="down" type="button" aria-pressed="'+(mine===-1)+'" aria-label="Vote down '+esc(entry.title)+'">\u25BC</button>'+
       '</span>'+
-      '<span class="pips">'+TAGS.map(t=>'<i class="pip '+t.cls+' '+((r[2]&t.bit)?"on":"")+
-        '" title="'+((r[2]&t.bit)?t.label:"not on: "+t.label)+'"></i>').join("")+'</span>'+
-      '<span class="title"><span class="s">'+esc(r[0])+'</span><span class="ar">'+esc(r[1]||"\u2014")+'</span></span>'+
+      '<span class="pips">'+TAGS.map(t=>'<i class="pip '+t.cls+' '+((entry.bits&t.bit)?"on":"")+
+        '" title="'+((entry.bits&t.bit)?t.label:"not on: "+t.label)+'"></i>').join("")+'</span>'+
+      '<span class="title"><span class="s">'+esc(entry.title)+'</span><span class="ar">'+artistLine+'</span></span>'+
       '<span class="breakdown">'+it.up+' up / '+it.down+' down</span>';
-    li.querySelector(".up").onclick=()=>cast(it.i, 1);
-    li.querySelector(".down").onclick=()=>cast(it.i,-1);
+    li.querySelector(".up").onclick=()=>cast(entry, 1);
+    li.querySelector(".down").onclick=()=>cast(entry,-1);
     frag.appendChild(li);
   }
   const list=$("list"); list.innerHTML=""; list.appendChild(frag);
 
   let up=0,down=0;
   for(const v of myVotes){ if(v===1)up++; else if(v===-1)down++; }
-  $("barstat").innerHTML='You: <b>'+up+'</b> up &middot; <b>'+down+'</b> down &middot; about <b>'+
-    Math.round(up*4)+'</b> min of music';
+  for(const k in mySuggVotes){ if(mySuggVotes[k]===1)up++; else if(mySuggVotes[k]===-1)down++; }
+  const mins=Math.round(up*4);
+  $("barstat").innerHTML='You: <b>'+up+'</b> up &middot; <b>'+down+'</b> down &middot; <b>'+
+    mins+' / '+SET_MINUTES+'</b> min (3.5-hr set)';
   const others=everyone.filter(p=>p.id!==myDocId).length;
   $("voters").textContent = others ? "\u00b7 "+others+(others===1?" other person has voted":" other people have voted") : "";
 }
 
-function cast(i, dir){
-  myVotes[i] = myVotes[i]===dir ? 0 : dir;
-  try{ localStorage.setItem("foo-wedding-votes", JSON.stringify([...myVotes])); }catch(e){}
+function cast(entry, dir){
+  if(entry.kind==="base"){
+    const i=entry.idx;
+    myVotes[i] = myVotes[i]===dir ? 0 : dir;
+    try{ localStorage.setItem("foo-wedding-votes", JSON.stringify([...myVotes])); }catch(e){}
+  }else{
+    const id=entry.id;
+    mySuggVotes[id] = mySuggVotes[id]===dir ? 0 : dir;
+    if(!mySuggVotes[id]) delete mySuggVotes[id];
+    try{ localStorage.setItem("foo-wedding-suggvotes", JSON.stringify(mySuggVotes)); }catch(e){}
+  }
   const mine=everyone.find(p=>p.id===myDocId);
-  if(mine) mine.votes=myVotes;
-  else everyone.push({id:myDocId, name:myName, votes:myVotes});
+  if(mine){ mine.votes=myVotes; mine.suggVotes=mySuggVotes; }
+  else everyone.push({id:myDocId, name:myName, votes:myVotes, suggVotes:mySuggVotes});
   render();
   saveVotes();
+}
+
+async function addSuggestion(){
+  const title=$("addTitle").value.trim();
+  const artist=$("addArtist").value.trim();
+  const err=$("adderr"); err.hidden=true;
+  if(!title){ err.textContent="Add a song title first."; err.hidden=false; return; }
+  const norm=s=>s.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+  const dupe = DATA.some(r=>norm(r[0])===norm(title) && norm(r[1]||"")===norm(artist))
+            || suggestions.some(s=>norm(s.title)===norm(title) && norm(s.artist||"")===norm(artist));
+  if(dupe){ err.textContent="That song’s already on the list."; err.hidden=false; return; }
+  if(!db){ err.textContent="Can’t add songs while offline."; err.hidden=false; return; }
+  try{
+    await addDoc(collection(db,"suggestions"),
+      {title, artist, addedBy:myName||"Someone", createdAt:Date.now()});
+    $("addTitle").value=""; $("addArtist").value="";
+  }catch(e){
+    err.textContent="Couldn’t add that song. ("+(e.code||e.message)+")";
+    err.hidden=false;
+  }
 }
 
 // ---------- boot ----------
@@ -338,9 +421,11 @@ async function begin(name){
     localStorage.setItem("foo-wedding-name", name);
     const v=localStorage.getItem("foo-wedding-votes");
     if(v){ const a=JSON.parse(v); if(a.length===N) myVotes=Int8Array.from(a); }
+    const sv=localStorage.getItem("foo-wedding-suggvotes");
+    if(sv) mySuggVotes=JSON.parse(sv)||{};
   }catch(e){}
   const mine=everyone.find(p=>p.id===myDocId);
-  if(mine) myVotes=mine.votes;
+  if(mine){ myVotes=mine.votes; mySuggVotes=mine.suggVotes||mySuggVotes; }
   $("gate").hidden=true; $("app").hidden=false; $("bar").hidden=false;
   $("whoami").textContent=myName;
   render();
@@ -355,12 +440,15 @@ $("start").onclick=()=>{
 $("name").onkeydown=e=>{ if(e.key==="Enter") $("start").click(); };
 $("switch").onclick=()=>{
   try{ localStorage.removeItem(LS); localStorage.removeItem("foo-wedding-name");
-       localStorage.removeItem("foo-wedding-votes"); }catch(e){}
+       localStorage.removeItem("foo-wedding-votes"); localStorage.removeItem("foo-wedding-suggvotes"); }catch(e){}
   location.reload();
 };
 $("q").oninput=render;
 $("sortScore").onclick=()=>{ sortBy="score"; render(); };
 $("sortAz").onclick=()=>{ sortBy="az"; render(); };
+$("addBtn").onclick=addSuggestion;
+$("addTitle").onkeydown=e=>{ if(e.key==="Enter") addSuggestion(); };
+$("addArtist").onkeydown=e=>{ if(e.key==="Enter") addSuggestion(); };
 
 buildLegend();
 await connect();
