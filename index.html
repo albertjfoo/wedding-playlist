@@ -27,7 +27,7 @@
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--ground);color:var(--ink);
   font-family:"Inter Tight",system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.5}
-.wrap{max-width:60rem;margin:0 auto;padding:2.25rem 1.25rem 6rem}
+.wrap{max-width:60rem;margin:0 auto;padding:2.25rem 1.25rem 3rem}
 .mast{display:flex;flex-wrap:wrap;gap:.4rem 1.5rem;align-items:baseline;
   padding-bottom:1.1rem;border-bottom:1px solid var(--edge)}
 .mast h1{font-family:"Bricolage Grotesque",serif;font-optical-sizing:auto;
@@ -79,13 +79,6 @@ input::placeholder{color:var(--faint)}
 .pip.on.f{background:var(--wine);border-color:var(--wine)}
 .pip.on.c{background:var(--lamp);border-color:var(--lamp)}
 .pip.on.g{background:var(--guest);border-color:var(--guest)}
-.sortrow{display:flex;gap:.4rem;align-items:center;margin-top:.55rem;
-  color:var(--faint);font-size:.78rem;flex-wrap:wrap}
-.sortrow button{background:none;border:0;color:var(--dim);font-size:.78rem;
-  padding:.1rem .3rem;border-radius:2px;text-decoration:underline;text-underline-offset:3px}
-.sortrow button[aria-pressed="true"]{color:var(--ink);text-decoration:none;
-  background:var(--raise);border:1px solid var(--edge)}
-
 .addrow{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem}
 .addrow input{flex:1 1 auto;min-width:8rem}
 .addrow .btn{flex:none}
@@ -111,15 +104,10 @@ ol.songs li{display:grid;grid-template-columns:auto auto 1fr auto;
 .empty{padding:3rem 0;color:var(--dim)}
 .hint{color:var(--faint);font-size:.76rem;margin:.55rem 0 0}
 
-.bar{position:fixed;left:0;right:0;bottom:0;background:var(--raise);
-  border-top:1px solid var(--edge);padding:.65rem 1.25rem;display:flex;
-  gap:.75rem;align-items:center;justify-content:center;flex-wrap:wrap;
-  font-size:.85rem;color:var(--dim)}
-.bar b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .banner{background:var(--raise);border:1px solid var(--down);border-radius:2px;
   padding:.7rem .9rem;margin:1.2rem 0;color:var(--dim);font-size:.86rem}
 @media (max-width:34rem){
-  .wrap{padding:1.6rem 1rem 6.5rem}
+  .wrap{padding:1.6rem 1rem 3rem}
   ol.songs li{grid-template-columns:auto auto 1fr}
   .breakdown{display:none}
 }
@@ -157,12 +145,7 @@ ol.songs li{display:grid;grid-template-columns:auto auto 1fr auto;
       <input type="search" id="q" placeholder="Search a song or artist" aria-label="Search songs and artists">
     </div>
     <div class="legend" id="legend" role="group" aria-label="Filter by list"></div>
-    <div class="sortrow">
-      Sort
-      <button id="sortScore" aria-pressed="true">by score</button>
-      <button id="sortAz" aria-pressed="false">A&ndash;Z</button>
-    </div>
-    <p class="hint">All four lists are switched on. Untick one to take its songs out.</p>
+    <p class="hint">All four lists are switched on. Untick one to take its songs out. Songs on more lists at once are shown first.</p>
     <div class="addrow">
       <input type="text" id="addTitle" placeholder="Song title" maxlength="80">
       <input type="text" id="addArtist" placeholder="Artist (optional)" maxlength="60">
@@ -174,10 +157,6 @@ ol.songs li{display:grid;grid-template-columns:auto auto 1fr auto;
   <ol class="songs" id="list"></ol>
   <p class="empty" id="empty" hidden></p>
 </section>
-</div>
-
-<div class="bar" id="bar" hidden>
-  <span id="barstat"></span>
 </div>
 
 <script type="module">
@@ -195,14 +174,13 @@ const TAGS = [
   {bit:4, cls:"c", label:"Common wedding song"},
   {bit:SUGG_BIT, cls:"g", label:"Public suggestions"}
 ];
-const SET_MINUTES = 210; // 3.5-hour set, at ~4 min/song
 const LS = "foo-wedding-id";
 
 let db=null, myDocId=null, myName="", myVotes=new Int8Array(N), mySuggVotes={};
 let everyone=[];              // [{id,name,votes:Int8Array,suggVotes:{}}]
 let suggestions=[];           // [{id,title,artist,addedBy,createdAt}]
-let sortBy="score";
 const state={1:true,2:true,4:true,[SUGG_BIT]:true};
+const bitCount=n=>{ let c=0; while(n){ c+=n&1; n>>=1; } return c; };
 const $=id=>document.getElementById(id);
 
 // ---------- helpers ----------
@@ -257,7 +235,7 @@ async function saveVotes(){
   saving=true;
   try{
     await setDoc(doc(db,"voters",myDocId),
-      {name:myName, votes:packVotes(myVotes), suggVotes:packSuggVotes(mySuggVotes), updated:Date.now()}, {merge:false});
+      {name:myName, nameKey:slug(myName), votes:packVotes(myVotes), suggVotes:packSuggVotes(mySuggVotes), updated:Date.now()}, {merge:false});
   }catch(e){
     showOffline("Couldn\u2019t save that vote to the shared list. ("+(e.code||e.message)+")");
   }
@@ -316,8 +294,6 @@ function render(){
   TAGS.forEach(t=>{ const b=$("legend").querySelector('[data-bit="'+t.bit+'"]');
                     if(b) b.setAttribute("aria-pressed", state[t.bit]); });
   updateLegendCounts();
-  $("sortScore").setAttribute("aria-pressed", sortBy==="score");
-  $("sortAz").setAttribute("aria-pressed", sortBy==="az");
 
   const term=$("q").value.trim().toLowerCase();
   const items=[];
@@ -331,9 +307,7 @@ function render(){
     }
     items.push({entry,up,down,net:up-down});
   }
-  items.sort( sortBy==="az"
-    ? (a,b)=>a.entry.title.localeCompare(b.entry.title)
-    : (a,b)=> b.net-a.net || b.up-a.up || a.entry.title.localeCompare(b.entry.title) );
+  items.sort((a,b)=> bitCount(b.entry.bits)-bitCount(a.entry.bits) || a.entry.title.localeCompare(b.entry.title));
 
   const anyOn=TAGS.some(t=>state[t.bit]);
   $("empty").hidden=items.length>0;
@@ -364,12 +338,6 @@ function render(){
   }
   const list=$("list"); list.innerHTML=""; list.appendChild(frag);
 
-  let up=0,down=0;
-  for(const v of myVotes){ if(v===1)up++; else if(v===-1)down++; }
-  for(const k in mySuggVotes){ if(mySuggVotes[k]===1)up++; else if(mySuggVotes[k]===-1)down++; }
-  const mins=Math.round(up*4);
-  $("barstat").innerHTML='You: <b>'+up+'</b> up &middot; <b>'+down+'</b> down &middot; <b>'+
-    mins+' / '+SET_MINUTES+'</b> min (3.5-hr set)';
   const others=everyone.filter(p=>p.id!==myDocId).length;
   $("voters").textContent = others ? "\u00b7 "+others+(others===1?" other person has voted":" other people have voted") : "";
 }
@@ -403,9 +371,16 @@ async function addSuggestion(){
   if(dupe){ err.textContent="That song’s already on the list."; err.hidden=false; return; }
   if(!db){ err.textContent="Can’t add songs while offline."; err.hidden=false; return; }
   try{
-    await addDoc(collection(db,"suggestions"),
+    const ref=await addDoc(collection(db,"suggestions"),
       {title, artist, addedBy:myName||"Someone", createdAt:Date.now()});
+    mySuggVotes[ref.id]=1;
+    try{ localStorage.setItem("foo-wedding-suggvotes", JSON.stringify(mySuggVotes)); }catch(e){}
+    const mine=everyone.find(p=>p.id===myDocId);
+    if(mine) mine.suggVotes=mySuggVotes;
+    else everyone.push({id:myDocId, name:myName, votes:myVotes, suggVotes:mySuggVotes});
+    saveVotes();
     $("addTitle").value=""; $("addArtist").value="";
+    render();
   }catch(e){
     err.textContent="Couldn’t add that song. ("+(e.code||e.message)+")";
     err.hidden=false;
@@ -426,7 +401,7 @@ async function begin(name){
   }catch(e){}
   const mine=everyone.find(p=>p.id===myDocId);
   if(mine){ myVotes=mine.votes; mySuggVotes=mine.suggVotes||mySuggVotes; }
-  $("gate").hidden=true; $("app").hidden=false; $("bar").hidden=false;
+  $("gate").hidden=true; $("app").hidden=false;
   $("whoami").textContent=myName;
   render();
   saveVotes();
@@ -441,11 +416,11 @@ $("name").onkeydown=e=>{ if(e.key==="Enter") $("start").click(); };
 $("switch").onclick=()=>{
   try{ localStorage.removeItem(LS); localStorage.removeItem("foo-wedding-name");
        localStorage.removeItem("foo-wedding-votes"); localStorage.removeItem("foo-wedding-suggvotes"); }catch(e){}
-  location.reload();
+  myDocId=null; myName=""; myVotes=new Int8Array(N); mySuggVotes={};
+  $("name").value="";
+  $("app").hidden=true; $("gate").hidden=false;
 };
 $("q").oninput=render;
-$("sortScore").onclick=()=>{ sortBy="score"; render(); };
-$("sortAz").onclick=()=>{ sortBy="az"; render(); };
 $("addBtn").onclick=addSuggestion;
 $("addTitle").onkeydown=e=>{ if(e.key==="Enter") addSuggestion(); };
 $("addArtist").onkeydown=e=>{ if(e.key==="Enter") addSuggestion(); };
